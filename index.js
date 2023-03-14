@@ -44,6 +44,8 @@ async function initOpenAI() {
             clientToUse: process.env.CLIENT_TO_USE,
         },
     });
+
+    console.log(chalk.greenBright('Connected to OpenAI API'));
 }
 
 // Initialize Discord Application Commands & New ChatGPT Thread
@@ -79,8 +81,12 @@ async function main() {
         );
     }
 
+    await initOpenAI().catch((e) => {
+        console.log(chalk.red(e));
+    });
+
     await initDiscordCommands().catch((e) => {
-        console.log(e);
+        console.log(chalk.red(e));
     });
 
     const client = new Client({
