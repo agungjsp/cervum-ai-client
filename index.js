@@ -135,7 +135,7 @@ async function main() {
 
     async function askInteractionHandler(interaction) {
         const question = interaction.options.getString('question');
-        const { tag } = interaction.user;
+        const { tag, id } = interaction.user;
 
         console.log('----------Channel Message--------');
         console.log('Date & Time : ' + new Date());
@@ -145,38 +145,35 @@ async function main() {
 
         try {
             await interaction.reply({ content: `${client.user.username} is thinking...` });
-            askQuestion(question, interaction, async (content) => {
-                let textResponse = content?.data?.response;
-                let { model, usage } = content?.data?.details;
 
-                console.log('Response    : ' + textResponse);
+            askQuestion(question, interaction, async (content) => {
+                const { response, details } = content?.data ?? {};
+                const { model, usage } = details ?? {};
+
+                console.log('Response    : ' + response);
                 console.log('---------------End---------------');
 
-                if (textResponse === undefined) {
+                if (response === undefined) {
                     await interaction.editReply({
                         content: 'Oops, something went wrong! (Undefined Response). Try again please.',
                     });
-                    client.user.setActivity('/ask');
                     return;
                 }
 
-                if (textResponse.length >= process.env.DISCORD_MAX_RESPONSE_LENGTH) {
+                if (response.length >= process.env.DISCORD_MAX_RESPONSE_LENGTH) {
                     await interaction.editReply({
                         content: "The answer to this question is very long, so I'll answer by DM.",
                     });
-                    splitAndSendResponse(textResponse, interaction.user);
+                    splitAndSendResponse(response, interaction.user);
                 } else {
-                    let formattedResponse = `> ${tag}: ${question}\n`;
-
-                    if (process.env.CLIENT_TO_USE !== 'bing' && model) {
-                        formattedResponse += `> Model: ${model}\n`;
-                    }
-
-                    formattedResponse += `> Token Usage: ${usage?.total_tokens}\n\`\`\`${textResponse}\`\`\``;
+                    const formattedResponse =
+                        `> ${tag}: ${question}\n` +
+                        (process.env.CLIENT_TO_USE === 'chatgpt' && model ? `> Model: ${model}\n` : '') +
+                        `> Token Usage: ${usage?.total_tokens}\n\`\`\`${response}\`\`\``;
 
                     await interaction.editReply(formattedResponse);
                 }
-                client.user.setActivity('/ask');
+
                 // TODO: send to DB
             });
         } catch (e) {
@@ -184,6 +181,7 @@ async function main() {
             await interaction.editReply({
                 content: 'Oops, something went wrong! (Undefined Response). Try again please.',
             });
+        } finally {
             client.user.setActivity('/ask');
         }
     }
