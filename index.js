@@ -6,9 +6,13 @@ import axios from 'axios';
 import chalk from 'chalk';
 import figlet from 'figlet';
 import gradient from 'gradient-string';
+import express from 'express';
 
 // Defines
 let res; // ChatGPT Thread Identifier
+const app = express(); // Express App
+
+app.use(express.json());
 
 // Discord Slash Commands Defines
 const commands = [
@@ -249,6 +253,14 @@ async function main() {
             resp = resp.slice(end, resp.length);
         }
     }
+
+    app.get('/', async (req, res) => {
+        return res.send('Hello World!');
+    });
+
+    app.listen(3000, () => {
+        console.log('Server listening on port 3000');
+    });
 }
 
 // Discord Rate Limit Check
