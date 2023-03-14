@@ -105,9 +105,11 @@ async function main() {
         partials: [Partials.Channel],
     });
 
-    client.login(process.env.DISCORD_BOT_TOKEN).catch((e) => console.log(chalk.red(e)));
+    client.on('error', (e) => {
+        console.log(chalk.red(e));
+    });
 
-    client.once('ready', () => {
+    client.on('ready', () => {
         console.log(`Logged in as ${client.user.tag}`);
         console.log(chalk.greenBright('Connected to Discord Gateway'));
         console.log(new Date());
@@ -132,6 +134,8 @@ async function main() {
                 await interaction.reply({ content: 'Command Not Found' });
         }
     });
+
+    client.login(process.env.DISCORD_BOT_TOKEN).catch((e) => console.log(chalk.red(e)));
 
     async function pingInteractionHandler(interaction) {
         const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
