@@ -139,8 +139,8 @@ async function main() {
 
         console.log('----------Channel Message--------');
         console.log('Date & Time : ' + new Date());
-        console.log('UserId      : ' + interaction.user.id);
-        console.log('User        : ' + interaction.user.tag);
+        console.log('UserId      : ' + id);
+        console.log('User        : ' + tag);
         console.log('Question    : ' + question);
 
         try {
