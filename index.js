@@ -26,7 +26,7 @@ const commands = [
     },
     {
         name: 'ping',
-        description: 'Check Websocket Heartbeat && Roundtrip Latency',
+        description: 'Check Websocket Heartbeat & Roundtrip Latency',
     },
 ];
 
@@ -47,7 +47,7 @@ async function initOpenAI() {
 }
 
 // Initialize Discord Application Commands & New ChatGPT Thread
-async function initDiscordCommands(api) {
+async function initDiscordCommands() {
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
     try {
         console.log('Started refreshing application commands (/)');
@@ -63,7 +63,7 @@ async function initDiscordCommands(api) {
     }
 }
 
-// Main Function (Entry Point)
+// Main Function (Execution Starts From Here)
 async function main() {
     if (process.env.UWU === 'true') {
         console.log(
@@ -135,6 +135,7 @@ async function main() {
 
     async function askInteractionHandler(interaction) {
         const question = interaction.options.getString('question');
+        const { tag } = interaction.user;
 
         console.log('----------Channel Message--------');
         console.log('Date & Time : ' + new Date());
@@ -143,31 +144,53 @@ async function main() {
         console.log('Question    : ' + question);
 
         try {
-            await interaction.reply({ content: `${client.user.username} Is Processing Your Question...` });
+            await interaction.reply({ content: `${client.user.username} is thinking...` });
             askQuestion(question, interaction, async (content) => {
-                console.log('Response    : ' + content.response);
+                let textResponse = content?.data?.response;
+                let { model, usage } = content?.data?.details;
+
+                console.log('Response    : ' + textResponse);
                 console.log('---------------End---------------');
-                if (content.response.length >= process.env.DISCORD_MAX_RESPONSE_LENGTH) {
+
+                if (textResponse === undefined) {
+                    await interaction.editReply({
+                        content: 'Oops, something went wrong! (Undefined Response). Try again please.',
+                    });
+                    client.user.setActivity('/ask');
+                    return;
+                }
+
+                if (textResponse.length >= process.env.DISCORD_MAX_RESPONSE_LENGTH) {
                     await interaction.editReply({
                         content: "The answer to this question is very long, so I'll answer by DM.",
                     });
-                    splitAndSendResponse(content.response, interaction.user);
+                    splitAndSendResponse(textResponse, interaction.user);
                 } else {
-                    await interaction.editReply(
-                        `**${interaction.user.tag}:** ${question}\n**${client.user.username}:** ${content.response}\n</>`,
-                    );
+                    let formattedResponse = `> ${tag}: ${question}\n`;
+
+                    if (process.env.CLIENT_TO_USE !== 'bing' && model) {
+                        formattedResponse += `> Model: ${model}\n`;
+                    }
+
+                    formattedResponse += `> Token Usage: ${usage?.total_tokens}\n\`\`\`${textResponse}\`\`\``;
+
+                    await interaction.editReply(formattedResponse);
                 }
                 client.user.setActivity('/ask');
                 // TODO: send to DB
             });
         } catch (e) {
             console.error(chalk.red(e));
+            await interaction.editReply({
+                content: 'Oops, something went wrong! (Undefined Response). Try again please.',
+            });
+            client.user.setActivity('/ask');
         }
     }
 
     function askQuestion(question, interaction, cb) {
         let tmr = setTimeout((e) => {
-            cb('Oppss, something went wrong! (Timeout)');
+            cb('Oops, something went wrong! (Timeout)');
             console.error(chalk.red(e));
         }, 100000);
 
