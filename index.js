@@ -52,7 +52,7 @@ async function initOpenAI() {
     console.log(chalk.greenBright('Connected to OpenAI API'));
 }
 
-// Initialize Discord Application Commands & New ChatGPT Thread
+// Initialize Discord Application Commands
 async function initDiscordCommands() {
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
     try {
@@ -259,7 +259,8 @@ async function main() {
     }
 
     app.get('/', async (req, res) => {
-        return res.send('Hello World!');
+        // Check health of the server
+        res.send('OK');
     });
 
     app.listen(3000, () => {
