@@ -258,6 +258,17 @@ async function main() {
         }
     }
 
+    // Discord bot announcement endpoint
+    app.post('/announcement', (req, res) => {
+        const { message } = req.body;
+        if (message) {
+            client.channels.cache.get(process.env.DISCORD_ANNOUNCEMENT_CHANNEL_ID).send(message);
+            res.send('OK');
+        } else {
+            res.send('No message');
+        }
+    });
+
     app.get('/', async (req, res) => {
         // Check health of the server
         res.send('OK');
