@@ -180,12 +180,27 @@ async function main() {
                     });
                     splitAndSendResponse(response, interaction.user);
                 } else {
-                    const formattedResponse =
-                        `> ${tag}: ${question}\n` +
-                        (process.env.CLIENT_TO_USE === 'chatgpt' && model ? `> Model: ${model}\n` : '') +
-                        `> Token Usage: ${usage?.total_tokens}\n\`\`\`${response}\`\`\``;
-
-                    await interaction.editReply(formattedResponse);
+                    await interaction.editReply({
+                        content: '',
+                        embeds: [
+                            {
+                                title: '',
+                                color: 15386181,
+                                description: `**Username**\n${tag}\n\n**Question**\n${question}\n\n**Answer**\n${response}`,
+                                timestamp: null,
+                                author: {
+                                    name: 'Cervum-AI',
+                                    url: '',
+                                },
+                                image: {},
+                                thumbnail: {},
+                                footer: {
+                                    text: `Model: ${model} • Token Usage: ${usage?.total_tokens}`,
+                                },
+                                fields: [],
+                            },
+                        ],
+                    });
                 }
 
                 // TODO: send to DB
