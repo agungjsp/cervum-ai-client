@@ -49,7 +49,7 @@ async function initOpenAI() {
         },
     });
 
-    console.log(chalk.greenBright('Connected to OpenAI API'));
+    console.log(chalk.greenBright(`Connected to OpenAI API - ${res.data.response}`));
 }
 
 // Initialize Discord Application Commands
@@ -84,10 +84,6 @@ async function main() {
             ),
         );
     }
-
-    await initOpenAI().catch((e) => {
-        console.log(chalk.red(e));
-    });
 
     await initDiscordCommands().catch((e) => {
         console.log(chalk.red(e));
@@ -134,6 +130,11 @@ async function main() {
 
     client.login(process.env.DISCORD_BOT_TOKEN).catch((e) => console.log(chalk.red(e)));
 
+    await initOpenAI().catch((e) => {
+        console.log(chalk.red(e));
+    });
+
+
     async function pingInteractionHandler(interaction) {
         const sent = await interaction.deferReply({ fetchReply: true });
         interaction.followUp(
@@ -154,7 +155,7 @@ async function main() {
         console.log('Question    : ' + question);
 
         try {
-            await interaction.reply({ content: `${client.user.username} is thinking...` });
+            await interaction.deferReply({ fetchReply: true });
 
             askQuestion(question, interaction, async (content) => {
                 const { response, details } = content?.data ?? {};
