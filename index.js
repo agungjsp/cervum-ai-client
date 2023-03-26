@@ -41,7 +41,6 @@ const api = axios.create({
 
 // Initialize OpenAI Session
 async function initOpenAI() {
-    console.log('Connecting to OpenAI API...');
     res = await api.post('/conversation', {
         message: process.env.CHATGPT_INITIAL_PROMPT,
         stream: false,
@@ -131,6 +130,8 @@ async function main() {
 
     client.login(process.env.DISCORD_BOT_TOKEN).catch((e) => console.log(chalk.red(e)));
 
+    console.log('Connecting to OpenAI API...');
+
     await initOpenAI().catch((e) => {
         console.log(chalk.red(e));
     });
@@ -155,7 +156,10 @@ async function main() {
         console.log('Question    : ' + question);
 
         try {
-            await interaction.deferReply({ fetchReply: true });
+            await interaction.deferReply({
+                fetchReply: true,
+                ephemeral: question.includes('--private') ? true : false,
+            });
 
             askQuestion(question, interaction, async (content) => {
                 const { response, details } = content?.data ?? {};
