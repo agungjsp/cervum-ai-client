@@ -114,14 +114,11 @@ async function main() {
         console.log(chalk.greenBright('Connected to Discord Gateway'));
         console.log(new Date());
         client.user.setStatus('online');
-        client.user.setActivity('/ask');
     });
 
     // Channel Message Handler
     client.on('interactionCreate', async (interaction) => {
         if (!interaction.isChatInputCommand()) return;
-
-        client.user.setActivity(interaction.user.tag, { type: ActivityType.Watching });
 
         switch (interaction.commandName) {
             case 'ask':
@@ -138,13 +135,12 @@ async function main() {
     client.login(process.env.DISCORD_BOT_TOKEN).catch((e) => console.log(chalk.red(e)));
 
     async function pingInteractionHandler(interaction) {
-        const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
-        interaction.editReply(
+        const sent = await interaction.deferReply({ fetchReply: true });
+        interaction.followUp(
             `Websocket Heartbeat: ${interaction.client.ws.ping} ms. \nRoundtrip Latency: ${
                 sent.createdTimestamp - interaction.createdTimestamp
             } ms`,
         );
-        client.user.setActivity('/ask');
     }
 
     async function askInteractionHandler(interaction) {
@@ -164,54 +160,54 @@ async function main() {
                 const { response, details } = content?.data ?? {};
                 const { model, usage } = details ?? {};
 
+                const embed = {
+                    content: '',
+                    embeds: [
+                        {
+                            title: '',
+                            color: 15386181,
+                            description: `**Username**\n${tag}\n\n**Question**\n${question}\n\n**Answer**\n${response}`,
+                            timestamp: null,
+                            author: {
+                                name: 'Cervum-AI',
+                                url: '',
+                            },
+                            image: {},
+                            thumbnail: {},
+                            footer: {
+                                text: `Model: ${model} • Token Usage: ${usage?.total_tokens}`,
+                            },
+                            fields: [],
+                        },
+                    ],
+                };
+
                 console.log('Response    : ' + response);
                 console.log('---------------End---------------');
 
                 if (response === undefined) {
-                    await interaction.editReply({
+                    await interaction.followUp({
                         content: 'Oops, something went wrong! (Undefined Response). Try again please.',
                     });
                     return;
                 }
 
                 if (response.length >= process.env.DISCORD_MAX_RESPONSE_LENGTH) {
-                    await interaction.editReply({
+                    await interaction.followUp({
                         content: "The answer to this question is very long, so I'll answer by DM.",
                     });
-                    splitAndSendResponse(response, interaction.user);
+                    await interaction.user.send(embed);
                 } else {
-                    await interaction.editReply({
-                        content: '',
-                        embeds: [
-                            {
-                                title: '',
-                                color: 15386181,
-                                description: `**Username**\n${tag}\n\n**Question**\n${question}\n\n**Answer**\n${response}`,
-                                timestamp: null,
-                                author: {
-                                    name: 'Cervum-AI',
-                                    url: '',
-                                },
-                                image: {},
-                                thumbnail: {},
-                                footer: {
-                                    text: `Model: ${model} • Token Usage: ${usage?.total_tokens}`,
-                                },
-                                fields: [],
-                            },
-                        ],
-                    });
+                    await interaction.followUp(embed);
                 }
 
                 // TODO: send to DB
             });
         } catch (e) {
             console.error(chalk.red(e));
-            await interaction.editReply({
+            await interaction.followUp({
                 content: 'Oops, something went wrong! (Undefined Response). Try again please.',
             });
-        } finally {
-            client.user.setActivity('/ask');
         }
     }
 
@@ -262,14 +258,6 @@ async function main() {
                     cb('Oops, something went wrong! (Error)');
                     console.error(chalk.red('AskQuestion Error:' + err));
                 });
-        }
-    }
-
-    async function splitAndSendResponse(resp, user) {
-        while (resp.length > 0) {
-            let end = Math.min(process.env.DISCORD_MAX_RESPONSE_LENGTH, resp.length);
-            await user.send(resp.slice(0, end));
-            resp = resp.slice(end, resp.length);
         }
     }
 
