@@ -41,6 +41,7 @@ const api = axios.create({
 
 // Initialize OpenAI Session
 async function initOpenAI() {
+    console.log('Connecting to OpenAI API...');
     res = await api.post('/conversation', {
         message: process.env.CHATGPT_INITIAL_PROMPT,
         stream: false,
@@ -133,7 +134,6 @@ async function main() {
     await initOpenAI().catch((e) => {
         console.log(chalk.red(e));
     });
-
 
     async function pingInteractionHandler(interaction) {
         const sent = await interaction.deferReply({ fetchReply: true });
