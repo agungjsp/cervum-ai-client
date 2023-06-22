@@ -2,6 +2,8 @@
 
 > Cervum-AI is a virtual assistant Discord bot that utilizes ChatGPT technology to provide human-like conversations and assistance with various tasks. This bot is designed to help Discord communities with their daily needs and provide a more engaging experience for their members.
 
+> Announcements Website: You can send the announcement by accessing the website: [https://cervum-ai-announcement.agungjayasukma.repl.co](https://cervum-ai-announcement.agungjayasukma.repl.co)
+
 [![MIT License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/agungjsp/cervum-ai-client/blob/master/LICENSE) [![GitHub Repo stars](https://img.shields.io/github/stars/agungjsp/cervum-ai-client)](https://github.com/agungjsp/cervum-ai-client/)
 
 ## Features
