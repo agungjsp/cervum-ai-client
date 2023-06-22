@@ -23,8 +23,20 @@ app.use(cors());
 // Discord Slash Commands Defines
 const commands = [
     {
-        name: 'ask',
-        description: 'Ask Anything!',
+        name: 'ask-gpt',
+        description: 'Ask Anything with GPT!',
+        options: [
+            {
+                name: 'question',
+                description: 'Your question',
+                type: 3,
+                required: true,
+            },
+        ],
+    },
+    {
+        name: 'ask-bing',
+        description: 'New! Ask Anything with Bing!',
         options: [
             {
                 name: 'question',
@@ -144,8 +156,11 @@ async function main() {
         if (!interaction.isChatInputCommand()) return;
 
         switch (interaction.commandName) {
-            case 'ask':
-                askInteractionHandler(interaction);
+            case 'ask-gpt':
+                askInteractionHandler(interaction, 'chatgpt');
+                break;
+            case 'ask-bing':
+                askInteractionHandler(interaction, 'bing');
                 break;
             case 'toggle-session':
                 toggleSessionInteractionHandler(interaction);
@@ -235,7 +250,7 @@ async function main() {
         }
     }
 
-    async function askInteractionHandler(interaction) {
+    async function askInteractionHandler(interaction, clientToUse) {
         const question = interaction.options.getString('question');
         const { tag, id } = interaction.user;
 
@@ -246,12 +261,15 @@ async function main() {
         console.log('Question    : ' + question);
 
         try {
+            const doc = await db.collection('chat-settings').doc(interaction.user.id).get();
+            const isPrivate = doc.data().isPrivate;
+
             await interaction.deferReply({
                 fetchReply: true,
-                ephemeral: question.includes('--private') ? true : false,
+                ephemeral: isPrivate,
             });
 
-            askQuestion(question, interaction, async (content) => {
+            askQuestion(question, interaction, clientToUse, async (content) => {
                 const { response, details } = content?.data ?? {};
                 const { model, usage } = details ?? {};
 
@@ -270,7 +288,9 @@ async function main() {
                             image: {},
                             thumbnail: {},
                             footer: {
-                                text: `Model: ${model} • Token Usage: ${usage?.total_tokens}`,
+                                text: `Model: ${model ?? 'bing'} • Token Usage: ${
+                                    usage?.total_tokens ?? '-'
+                                }`,
                             },
                             fields: [],
                         },
@@ -300,16 +320,24 @@ async function main() {
                 const timeStamp = new Date();
                 const date = `${timeStamp.getUTCDate()}.${timeStamp.getUTCMonth()}.${timeStamp.getUTCFullYear()}`;
                 const time = `${timeStamp.getUTCHours()}:${timeStamp.getUTCMinutes()}:${timeStamp.getUTCSeconds()}`;
-                await db.collection('chat-history').doc(interaction.user.id).collection(date).doc(time).set({
-                    timeStamp: new Date(),
-                    userID: interaction.user.id,
-                    user: interaction.user.tag,
-                    question: question,
-                    answer: content.text,
-                    parentMessageId: content.id,
-                });
+                await db
+                    .collection('chat-history')
+                    .doc(interaction.user.id)
+                    .collection(clientToUse)
+                    .doc('conversation')
+                    .collection(date)
+                    .doc(time)
+                    .set({
+                        timeStamp: new Date(),
+                        userID: interaction.user.id,
+                        user: interaction.user.tag,
+                        question: question,
+                        answer: content.text,
+                        parentMessageId: content.id,
+                    });
             });
         } catch (e) {
+            console.log('🚀 ~ askInteractionHandler ~ e:', e);
             console.error(chalk.red(e));
             await interaction.followUp({
                 content: 'Oops, something went wrong! (Undefined Response). Try again please.',
@@ -317,59 +345,75 @@ async function main() {
         }
     }
 
-    async function askQuestion(question, interaction, cb) {
-        const doc = await db.collection('users').doc(interaction.user.id).get();
+    async function askQuestion(question, interaction, clientToUse, cb) {
+        try {
+            const userRef = db.collection('users').doc(interaction.user.id);
+            const conversationRef = userRef.collection(clientToUse).doc('conversation');
 
-        if (!doc.exists) {
-            console.log('No conversation found, creating one...');
+            const doc = await conversationRef.get();
 
-            api.post('/conversation', {
+            const defaultPayload = {
                 message: question,
-                stream: false,
                 clientOptions: {
-                    clientToUse: process.env.CLIENT_TO_USE,
+                    clientToUse,
                 },
-            })
-                .then((response) => {
-                    db.collection('users').doc(interaction.user.id).set({
-                        userID: interaction.user.id,
-                        user: interaction.user.tag,
-                        conversationId: response.data.conversationId,
-                        parentMessageId: response.data.messageId,
-                    });
+            };
 
-                    cb(response);
-                })
-                .catch((err) => {
-                    cb('Oops, something went wrong! (Error)');
-                    console.error(chalk.red('AskQuestion Error:' + err));
-                });
-        } else {
-            console.log('Conversation found, sending message...');
+            const defaultSet = {
+                userID: interaction.user.id,
+                user: interaction.user.tag,
+                conversationId: null,
+                parentMessageId: null,
+                conversationSignature: null,
+                clientId: null,
+                invocationId: null,
+            };
 
-            api.post('/conversation', {
-                message: question,
-                stream: false,
-                clientOptions: {
-                    clientToUse: process.env.CLIENT_TO_USE,
-                },
-                conversationId: res.data.conversationId,
-                parentMessageId: res.data.messageId,
-            })
-                .then((response) => {
-                    db.collection('users').doc(interaction.user.id).set({
-                        userID: interaction.user.id,
-                        user: interaction.user.tag,
-                        conversationId: doc.data().conversationId,
-                        parentMessageId: doc.data().parentMessageId,
-                    });
+            if (!doc.exists) {
+                console.log('No conversation found, creating one...');
 
-                    cb(response);
-                })
-                .catch((err) => {
-                    cb('Oops, something went wrong! (Error)');
-                    console.error(chalk.red('AskQuestion Error:' + err));
-                });
+                const response = await api.post('/conversation', defaultPayload);
+
+                defaultSet.conversationId = response.data.conversationId;
+                defaultSet.parentMessageId =
+                    clientToUse === 'chatgpt' ? response.data.messageId : response.data.details.messageId;
+
+                if (clientToUse === 'bing') {
+                    defaultSet.conversationSignature = response.data.conversationSignature;
+                    defaultSet.clientId = response.data.clientId;
+                    defaultSet.invocationId = response.data.invocationId;
+                }
+
+                await conversationRef.set(defaultSet);
+
+                cb(response);
+            } else {
+                console.log('Conversation found, sending message...');
+
+                const docData = doc.data();
+
+                defaultPayload.conversationId = docData.conversationId;
+                defaultPayload.parentMessageId = docData.parentMessageId;
+
+                const response = await api.post('/conversation', defaultPayload);
+
+                defaultSet.conversationId = response.data.conversationId;
+                defaultSet.parentMessageId =
+                    clientToUse === 'chatgpt' ? response.data.messageId : response.data.details.messageId;
+
+                if (clientToUse === 'bing') {
+                    defaultSet.conversationSignature = docData.conversationSignature;
+                    defaultSet.clientId = docData.clientId;
+                    defaultSet.invocationId = docData.invocationId;
+                }
+
+                await conversationRef.set(defaultSet);
+
+                cb(response);
+            }
+        } catch (error) {
+            console.log(chalk.red('AskQuestion Error:' + error));
+            cb('Oops, something went wrong! (Error)');
         }
     }
 
