@@ -1,13 +1,17 @@
 // Imports
 import dotenv from 'dotenv';
 dotenv.config();
-import { Client, GatewayIntentBits, REST, Routes, Partials, ActivityType } from 'discord.js';
+import { Client, GatewayIntentBits, REST, Routes, Partials } from 'discord.js';
 import axios from 'axios';
 import chalk from 'chalk';
 import figlet from 'figlet';
 import gradient from 'gradient-string';
+import admin from 'firebase-admin';
 import express from 'express';
 import cors from 'cors';
+
+// Ignore the red squiggly lines, it works fine
+import firebaseServiceAccount from './firebaseServiceAccountKey.json' assert { type: 'json' };
 
 // Defines
 let res; // ChatGPT Thread Identifier
@@ -71,7 +75,18 @@ async function initDiscordCommands() {
     }
 }
 
-// Main Function (Execution Starts From Here)
+async function initFirebaseAdmin() {
+    admin.initializeApp({
+        credential: admin.credential.cert(firebaseServiceAccount),
+        databaseURL: `https://${firebaseServiceAccount.project_id}.firebaseio.com`,
+    });
+    const db = admin.firestore();
+    db.settings({ ignoreUndefinedProperties: true });
+    console.log(chalk.greenBright('Connected to Firebase Firestore'));
+    return db;
+}
+
+/////// Main Function (Execution Starts From Here)
 async function main() {
     if (process.env.UWU === 'true') {
         console.log(
@@ -86,6 +101,8 @@ async function main() {
             ),
         );
     }
+
+    const db = await initFirebaseAdmin();
 
     await initDiscordCommands().catch((e) => {
         console.log(chalk.red(e));
@@ -132,11 +149,11 @@ async function main() {
 
     client.login(process.env.DISCORD_BOT_TOKEN).catch((e) => console.log(chalk.red(e)));
 
-    console.log('Connecting to OpenAI API...');
+    // console.log('Connecting to OpenAI API...');
 
-    await initOpenAI().catch((e) => {
-        console.log(chalk.red(e));
-    });
+    // await initOpenAI().catch((e) => {
+    //     console.log(chalk.red(e));
+    // });
 
     async function pingInteractionHandler(interaction) {
         const sent = await interaction.deferReply({ fetchReply: true });
@@ -208,7 +225,18 @@ async function main() {
                     await interaction.followUp(embed);
                 }
 
-                // TODO: send to DB
+                // Send to DB
+                const timeStamp = new Date();
+                const date = `${timeStamp.getUTCDate()}.${timeStamp.getUTCMonth()}.${timeStamp.getUTCFullYear()}`;
+                const time = `${timeStamp.getUTCHours()}:${timeStamp.getUTCMinutes()}:${timeStamp.getUTCSeconds()}`;
+                await db.collection('chat-history').doc(interaction.user.id).collection(date).doc(time).set({
+                    timeStamp: new Date(),
+                    userID: interaction.user.id,
+                    user: interaction.user.tag,
+                    question: question,
+                    answer: content.text,
+                    parentMessageId: content.id,
+                });
             });
         } catch (e) {
             console.error(chalk.red(e));
@@ -218,28 +246,27 @@ async function main() {
         }
     }
 
-    function askQuestion(question, interaction, cb) {
-        let tmr = setTimeout((e) => {
-            cb('Oops, something went wrong! (Timeout)');
-            console.error(chalk.red(e));
-        }, 100000);
+    async function askQuestion(question, interaction, cb) {
+        const doc = await db.collection('users').doc(interaction.user.id).get();
 
-        if (process.env.TYPING_EFFECT === 'true') {
+        if (!doc.exists) {
+            console.log('No conversation found, creating one...');
+
             api.post('/conversation', {
                 message: question,
                 stream: false,
                 clientOptions: {
                     clientToUse: process.env.CLIENT_TO_USE,
                 },
-                conversationId: res.data.conversationId,
-                parentMessageId: res.data.messageId,
             })
                 .then((response) => {
-                    clearTimeout(tmr);
-                    interaction.editReply(
-                        `**${interaction.user.tag}:** ${question}\n**${client.user.username}:** ${response.data.response}`,
-                    );
-                    res = response;
+                    db.collection('users').doc(interaction.user.id).set({
+                        userID: interaction.user.id,
+                        user: interaction.user.tag,
+                        conversationId: response.data.conversationId,
+                        parentMessageId: response.data.messageId,
+                    });
+
                     cb(response);
                 })
                 .catch((err) => {
@@ -247,6 +274,8 @@ async function main() {
                     console.error(chalk.red('AskQuestion Error:' + err));
                 });
         } else {
+            console.log('Conversation found, sending message...');
+
             api.post('/conversation', {
                 message: question,
                 stream: false,
@@ -257,8 +286,13 @@ async function main() {
                 parentMessageId: res.data.messageId,
             })
                 .then((response) => {
-                    clearTimeout(tmr);
-                    res = response;
+                    db.collection('users').doc(interaction.user.id).set({
+                        userID: interaction.user.id,
+                        user: interaction.user.tag,
+                        conversationId: doc.data().conversationId,
+                        parentMessageId: doc.data().parentMessageId,
+                    });
+
                     cb(response);
                 })
                 .catch((err) => {
