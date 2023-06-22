@@ -35,6 +35,10 @@ const commands = [
         ],
     },
     {
+        name: 'toggle-session',
+        description: 'Toggle Private or Public Chat Session',
+    },
+    {
         name: 'reset-chat',
         description: 'Start A Fresh Chat Session',
     },
@@ -143,6 +147,9 @@ async function main() {
             case 'ask':
                 askInteractionHandler(interaction);
                 break;
+            case 'toggle-session':
+                toggleSessionInteractionHandler(interaction);
+                break;
             case 'reset-chat':
                 resetChatInteractionHandler(interaction);
                 break;
@@ -161,6 +168,32 @@ async function main() {
     // await initOpenAI().catch((e) => {
     //     console.log(chalk.red(e));
     // });
+
+    async function toggleSessionInteractionHandler(interaction) {
+        try {
+            await interaction.deferReply({
+                fetchReply: true,
+                ephemeral: true,
+            });
+            const doc = await db.collection('chat-settings').doc(interaction.user.id).get();
+            if (!doc.exists) {
+                await db.collection('chat-settings').doc(interaction.user.id).set({
+                    isPrivate: true,
+                });
+                await interaction.editReply('Session is now Private 🔒');
+                return;
+            }
+
+            const isPrivate = doc.data().isPrivate;
+            await db.collection('chat-settings').doc(interaction.user.id).update({
+                isPrivate: !isPrivate,
+            });
+            await interaction.editReply(`Session is now ${isPrivate ? 'Public 🔓' : 'Private 🔒'}`);
+        } catch (error) {
+            console.log(chalk.red(error));
+            await interaction.editReply('Something Went Wrong ❌');
+        }
+    }
 
     async function pingInteractionHandler(interaction) {
         const sent = await interaction.deferReply({ fetchReply: true });
