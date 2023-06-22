@@ -287,17 +287,6 @@ async function main() {
     });
 }
 
-// Discord Rate Limit Check
-setInterval(() => {
-    axios.get('https://discord.com/api/v10').catch((error) => {
-        if (error.response.status == 429) {
-            console.log('Discord Rate Limited');
-            console.warn('Status: ' + error.response.status);
-            console.warn(error);
-        }
-    });
-}, 30000); // Check Every 30 Second
-
 main(); // Call Main function
 
 // ---End of Code---
