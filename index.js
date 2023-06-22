@@ -268,12 +268,19 @@ async function main() {
 
     // Discord bot announcement endpoint
     app.post('/announcement', (req, res) => {
-        const { message } = req.body;
-        if (message) {
-            client.channels.cache.get(process.env.DISCORD_ANNOUNCEMENT_CHANNEL_ID).send(message);
-            res.send('OK');
+        const { channelId, message } = req.body;
+        const channel = client.channels.cache.get(channelId);
+        if (channel && message) {
+            channel.send(message);
+            res.send({
+                status: 200,
+                message: 'Announcement sent',
+            });
         } else {
-            res.send('No message');
+            res.status(400).send({
+                status: 400,
+                message: 'Missing channel ID or message',
+            });
         }
     });
 
