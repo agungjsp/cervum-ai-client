@@ -205,15 +205,33 @@ async function main() {
     }
 
     async function resetChatInteractionHandler(interaction) {
-        await interaction.reply('Checking...📚');
-        const doc = await db.collection('users').doc(interaction.user.id).get();
-        if (!doc.exists) {
-            console.log('Failed: No Conversation Found ❌');
-            await interaction.editReply('No Conversation Found ❌\nUse `/ask-gpt` To Start One.');
-        } else {
-            await db.collection('users').doc(interaction.user.id).delete();
-            console.log('Chat Reset: Successful ✅');
-            await interaction.editReply('Chat Reset: Successful ✅');
+        try {
+            await interaction.reply('Checking...📚');
+
+            const userRef = db.collection('users').doc(interaction.user.id);
+            const batch = db.batch();
+
+            const chatgptDocRef = userRef.collection('chatgpt').doc('conversation');
+            batch.delete(chatgptDocRef);
+
+            const bingDocRef = userRef.collection('bing').doc('conversation');
+            batch.delete(bingDocRef);
+
+            const [chatgptDoc, bingDoc] = await Promise.all([chatgptDocRef.get(), bingDocRef.get()]);
+
+            if (!chatgptDoc.exists || !bingDoc.exists) {
+                console.log('Failed: No Conversation Found ❌');
+                await interaction.editReply(
+                    'No Conversation Found ❌\nUse `/ask-gpt` or `/ask-bing` To Start One.',
+                );
+            } else {
+                await batch.commit();
+                console.log('Chat Reset: Successful ✅');
+                await interaction.editReply('Chat Reset: Successful ✅');
+            }
+        } catch (error) {
+            console.error(chalk.red(error));
+            await interaction.editReply('Something Went Wrong ❌');
         }
     }
 
