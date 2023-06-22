@@ -7,12 +7,14 @@ import chalk from 'chalk';
 import figlet from 'figlet';
 import gradient from 'gradient-string';
 import express from 'express';
+import cors from 'cors';
 
 // Defines
 let res; // ChatGPT Thread Identifier
 const app = express(); // Express App
 
 app.use(express.json());
+app.use(cors());
 
 // Discord Slash Commands Defines
 const commands = [
