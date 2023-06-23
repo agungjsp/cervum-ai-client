@@ -234,11 +234,9 @@ async function main() {
 
             const [chatgptDoc, bingDoc] = await Promise.all([chatgptDocRef.get(), bingDocRef.get()]);
 
-            if (!chatgptDoc.exists || !bingDoc.exists) {
-                console.log('Failed: No Conversation Found ❌');
-                await interaction.editReply(
-                    'No Conversation Found ❌\nUse `/ask-gpt` or `/ask-bing` To Start One.',
-                );
+            if (!chatgptDoc.exists && !bingDoc.exists) {
+                console.log('Chat Reset: Already Empty ✅');
+                await interaction.editReply('Chat Reset: Already Empty ✅');
             } else {
                 await batch.commit();
                 console.log('Chat Reset: Successful ✅');
@@ -337,7 +335,6 @@ async function main() {
                     });
             });
         } catch (e) {
-            console.log('🚀 ~ askInteractionHandler ~ e:', e);
             console.error(chalk.red(e));
             await interaction.followUp({
                 content: 'Oops, something went wrong! (Undefined Response). Try again please.',
@@ -394,6 +391,12 @@ async function main() {
 
                 defaultPayload.conversationId = docData.conversationId;
                 defaultPayload.parentMessageId = docData.parentMessageId;
+
+                if (clientToUse === 'bing') {
+                    defaultPayload.conversationSignature = docData.conversationSignature;
+                    defaultPayload.clientId = docData.clientId;
+                    defaultPayload.invocationId = docData.invocationId;
+                }
 
                 const response = await api.post('/conversation', defaultPayload);
 
