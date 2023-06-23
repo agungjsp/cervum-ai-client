@@ -1,26 +1,26 @@
 # Cervum-AI Discord Bot
 
-> Cervum-AI is a virtual assistant Discord bot that utilizes ChatGPT technology to provide human-like conversations and assistance with various tasks. This bot is designed to help Discord communities with their daily needs and provide a more engaging experience for their members.
-
-> Announcements Website: You can send the announcement by accessing the website: [https://cervum-ai-announcement.agungjayasukma.repl.co](https://cervum-ai-announcement.agungjayasukma.repl.co)
-
 [![MIT License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/agungjsp/cervum-ai-client/blob/master/LICENSE) [![GitHub Repo stars](https://img.shields.io/github/stars/agungjsp/cervum-ai-client)](https://github.com/agungjsp/cervum-ai-client/)
+
+Cervum-AI is a virtual assistant Discord bot that utilizes ChatGPT technology to provide human-like conversations and assistance with various tasks. This bot is designed to help Discord communities with their daily needs and provide a more engaging experience for their members.
+
+## Announcement Website
+
+Send the announcement to the channel by accessing this website: [https://cervum-ai-announcement.agungjayasukma.repl.co](https://cervum-ai-announcement.agungjayasukma.repl.co)
 
 ## Features
 
 Cervum-AI comes with a range of features to assist Discord users with their daily tasks, including:
 
 -   Conversation: Cervum-AI uses advanced natural language processing and machine learning techniques to provide human-like conversations that can help users with a variety of tasks.
--   Information Retrieval: The bot can retrieve information on a wide range of topics, including news, weather and stock prices.
-
-## TODO
-
--   [ ] Utility Commands: Cervum-AI can perform a variety of utility tasks, such as setting reminders, providing time zone information and generating random numbers.
--   [ ] Client Selection: Cervum-AI can be configured to use different clients, including ChatGPTClient, BingAIClient and ChatGPTBrowserClient.
+-   Information retrieval: The bot can retrieve information on a wide range of topics, including news, weather and stock prices.
+-   Private session: Our private session feature allows you to have a one-on-one conversation with Cervum Assistant without any interruptions or distractions. This feature is perfect for sensitive or confidential conversations that you want to keep private.
+-   Continuity chat: Allow you to continue your conversation even if you close the chat channel or leave the application. You can pick up where you left off without losing any of your previous messages.
+-   Forget conversation: Delete your chat history with Cervum Assistant.
 
 ## Support
 
-If you have any questions or issues with Cervum-AI, please contact the bot's developers on GitHub or Discord.
+If you have any questions or issues with Cervum-AI, please contact the developers on GitHub or Discord.
 
 ## Credits
 
