@@ -275,6 +275,7 @@ async function main() {
                     content: '',
                     embeds: [
                         {
+                            type: 'rich',
                             title: '',
                             color: 15386181,
                             description: `**Username**\n${tag}\n\n**Question**\n${question}\n\n**Answer**\n${response}`,
@@ -283,7 +284,9 @@ async function main() {
                                 name: 'Cervum-AI',
                                 url: '',
                             },
-                            image: {},
+                            image: {
+                                url: response?.match(/https?:\/\/\S+/g)?.[0],
+                            },
                             thumbnail: {},
                             footer: {
                                 text: `Model: ${model ?? 'bing'} • Token Usage: ${
@@ -405,9 +408,9 @@ async function main() {
                     clientToUse === 'chatgpt' ? response.data.messageId : response.data.details.messageId;
 
                 if (clientToUse === 'bing') {
-                    defaultSet.conversationSignature = docData.conversationSignature;
-                    defaultSet.clientId = docData.clientId;
-                    defaultSet.invocationId = docData.invocationId;
+                    defaultSet.conversationSignature = response.data.conversationSignature;
+                    defaultSet.clientId = response.data.clientId;
+                    defaultSet.invocationId = response.data.invocationId;
                 }
 
                 await conversationRef.set(defaultSet);
