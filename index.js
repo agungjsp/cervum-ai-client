@@ -260,7 +260,15 @@ async function main() {
 
         try {
             const doc = await db.collection('chat-settings').doc(interaction.user.id).get();
-            const isPrivate = doc.data().isPrivate;
+            const isPrivate = false;
+
+            if (!doc.exists) {
+                await db.collection('chat-settings').doc(interaction.user.id).set({
+                    isPrivate,
+                });
+            } else {
+                isPrivate = doc.data().isPrivate;
+            }
 
             await interaction.deferReply({
                 fetchReply: true,
