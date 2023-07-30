@@ -260,7 +260,7 @@ async function main() {
 
         try {
             const doc = await db.collection('chat-settings').doc(interaction.user.id).get();
-            const isPrivate = false;
+            let isPrivate = false;
 
             if (!doc.exists) {
                 await db.collection('chat-settings').doc(interaction.user.id).set({
@@ -360,14 +360,14 @@ async function main() {
 
             const doc = await conversationRef.get();
 
-            const defaultPayload = {
+            let defaultPayload = {
                 message: question,
                 clientOptions: {
                     clientToUse,
                 },
             };
 
-            const defaultSet = {
+            let defaultSet = {
                 userID: interaction.user.id,
                 user: interaction.user.tag,
                 conversationId: null,
