@@ -58,6 +58,10 @@ const commands = [
         name: 'ping',
         description: 'Check Websocket Heartbeat & Roundtrip Latency',
     },
+    {
+        name: 'help',
+        description: 'Show what commands are available',
+    },
 ];
 
 // Axios instance for ChatGPT Proxy
@@ -81,17 +85,14 @@ async function initOpenAI() {
 // Initialize Discord Application Commands
 async function initDiscordCommands() {
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
+    console.log('[initDiscordCommands] - Started refreshing application commands (/)');
     try {
-        console.log('Started refreshing application commands (/)');
-        await rest
-            .put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: commands })
-            .then(() => {
-                console.log('Successfully reloaded application commands (/)');
-            })
-            .catch((e) => console.log(chalk.red(e)));
-        console.log('Connecting to Discord Gateway...');
+        const response = await rest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), {
+            body: commands,
+        });
+        return response;
     } catch (error) {
-        console.log(chalk.red(error));
+        throw new Error(error);
     }
 }
 
@@ -102,7 +103,7 @@ async function initFirebaseAdmin() {
     });
     const db = admin.firestore();
     db.settings({ ignoreUndefinedProperties: true });
-    console.log(chalk.greenBright('Connected to Firebase Firestore'));
+    console.log(chalk.greenBright('[initFirebaseAdmin] - Connected to Firebase Firestore'));
     return db;
 }
 
@@ -124,9 +125,19 @@ async function main() {
 
     const db = await initFirebaseAdmin();
 
-    await initDiscordCommands().catch((e) => {
-        console.log(chalk.red(e));
-    });
+    initDiscordCommands()
+        .then(() => {
+            console.log(
+                chalk.greenBright('[initDiscordCommands] - Initialized Discord Application Commands'),
+            );
+        })
+        .catch((e) => {
+            // Retry after 3 seconds
+            setTimeout(() => {
+                initDiscordCommands();
+            }, 3000);
+            console.log(chalk.red(`[initDiscordCommands] - ${e}`));
+        });
 
     const client = new Client({
         intents: [
@@ -141,13 +152,13 @@ async function main() {
     });
 
     client.on('error', (e) => {
-        console.log(chalk.red(e));
+        console.log(chalk.red(`[Discord on error] - ${e}`));
     });
 
     client.on('ready', () => {
-        console.log(`Logged in as ${client.user.tag}`);
-        console.log(chalk.greenBright('Connected to Discord Gateway'));
-        console.log(new Date());
+        console.log(`[Discord on ready] - Logged in as ${client.user.tag}!`);
+        console.log(chalk.greenBright('[Discord on ready] - Connected to Discord Gateway'));
+        console.log(`[Discord on ready] - ${new Date().toLocaleString()}`);
         client.user.setStatus('online');
     });
 
@@ -159,24 +170,52 @@ async function main() {
             case 'ask-gpt':
                 askInteractionHandler(interaction, 'chatgpt');
                 break;
-            case 'ask-bing':
-                askInteractionHandler(interaction, 'bing');
+            case 'ask-bing': {
+                // askInteractionHandler(interaction, 'bing');'
+                const text =
+                    'Sorry, our ask-bing is currently under maintenance. Please use ask-gpt instead.';
+                replyOnlyText(interaction, text);
                 break;
-            case 'toggle-session':
-                toggleSessionInteractionHandler(interaction);
+            }
+            case 'toggle-session': {
+                // toggleSessionInteractionHandler(interaction);
+                const text =
+                    'Sorry, our toggle-session is currently under maintenance. We will notify you when it is ready.';
+                replyOnlyText(interaction, text);
                 break;
+            }
             case 'reset-chat':
                 resetChatInteractionHandler(interaction);
                 break;
             case 'ping':
-                pingInteractionHandler(interaction);
+                const text = `Websocket Heartbeat: ${client.ws.ping}ms\nRoundtrip Latency: ${
+                    Date.now() - interaction.createdTimestamp
+                }ms`;
+                replyOnlyText(interaction, text);
                 break;
+            case 'help': {
+                const text =
+                    "Here's a list of commands you can use with Cervum-AI:\n\n" +
+                    '**/ask-gpt** - Ask Anything with GPT!\n' +
+                    '**/ask-bing** - New! Ask Anything with Bing!\n' +
+                    '**/toggle-session** - Toggle Private or Public Chat Session\n' +
+                    '**/reset-chat** - Start A Fresh Chat Session\n' +
+                    '**/ping** - Check Websocket Heartbeat & Roundtrip Latency\n' +
+                    '**/help** - Show this message\n\n' +
+                    'If you have any questions, please contact bot developer <@!' +
+                    '323362522247856129' +
+                    '>';
+                replyOnlyText(interaction, text);
+                break;
+            }
             default:
                 await interaction.reply({ content: 'Command Not Found' });
         }
     });
 
-    client.login(process.env.DISCORD_BOT_TOKEN).catch((e) => console.log(chalk.red(e)));
+    client
+        .login(process.env.DISCORD_BOT_TOKEN)
+        .catch((e) => console.log(chalk.red(`[Discord login] - ${e}`)));
 
     // console.log('Connecting to OpenAI API...');
 
@@ -205,18 +244,17 @@ async function main() {
             });
             await interaction.editReply(`Session is now ${isPrivate ? 'Public 🔓' : 'Private 🔒'}`);
         } catch (error) {
-            console.log(chalk.red(error));
+            console.log(chalk.red(`[toggleSessionInteractionHandler] - ${error}`));
             await interaction.editReply('Something Went Wrong ❌');
         }
     }
 
-    async function pingInteractionHandler(interaction) {
-        const sent = await interaction.deferReply({ fetchReply: true });
-        interaction.followUp(
-            `Websocket Heartbeat: ${interaction.client.ws.ping} ms. \nRoundtrip Latency: ${
-                sent.createdTimestamp - interaction.createdTimestamp
-            } ms`,
-        );
+    async function replyOnlyText(interaction, text) {
+        await interaction.deferReply({
+            fetchReply: true,
+            ephemeral: true,
+        });
+        await interaction.editReply(text);
     }
 
     async function resetChatInteractionHandler(interaction) {
@@ -235,15 +273,15 @@ async function main() {
             const [chatgptDoc, bingDoc] = await Promise.all([chatgptDocRef.get(), bingDocRef.get()]);
 
             if (!chatgptDoc.exists && !bingDoc.exists) {
-                console.log('Chat Reset: Already Empty ✅');
+                console.log('[resetChatInteractionHandler] - Chat Reset: Already Empty ✅');
                 await interaction.editReply('Chat Reset: Already Empty ✅');
             } else {
                 await batch.commit();
-                console.log('Chat Reset: Successful ✅');
+                console.log('[resetChatInteractionHandler] - Chat Reset: Successful ✅');
                 await interaction.editReply('Chat Reset: Successful ✅');
             }
         } catch (error) {
-            console.error(chalk.red(error));
+            console.error(chalk.red(`[resetChatInteractionHandler] - ${error}`));
             await interaction.editReply('Something Went Wrong ❌');
         }
     }
@@ -259,20 +297,21 @@ async function main() {
         console.log('Question    : ' + question);
 
         try {
-            const doc = await db.collection('chat-settings').doc(interaction.user.id).get();
-            let isPrivate = false;
+            // const docRef = db.collection('chat-settings').doc(interaction.user.id);
+            // const doc = await docRef.get();
+            // let isPrivate = false;
 
-            if (!doc.exists) {
-                await db.collection('chat-settings').doc(interaction.user.id).set({
-                    isPrivate,
-                });
-            } else {
-                isPrivate = doc.data().isPrivate;
-            }
+            // if (!doc.exists) {
+            //     await docRef.set({
+            //         isPrivate,
+            //     });
+            // } else {
+            //     isPrivate = doc.data().isPrivate;
+            // }
 
             await interaction.deferReply({
                 fetchReply: true,
-                ephemeral: isPrivate,
+                ephemeral: false,
             });
 
             askQuestion(question, interaction, clientToUse, async (content) => {
@@ -331,22 +370,22 @@ async function main() {
                 const time = `${timeStamp.getUTCHours()}:${timeStamp.getUTCMinutes()}:${timeStamp.getUTCSeconds()}`;
                 await db
                     .collection('chat-history')
-                    .doc(interaction.user.id)
+                    .doc(id)
                     .collection(clientToUse)
                     .doc('conversation')
                     .collection(date)
                     .doc(time)
                     .set({
                         timeStamp: new Date(),
-                        userID: interaction.user.id,
-                        user: interaction.user.tag,
+                        userID: id,
+                        user: tag,
                         question: question,
                         answer: content.text,
                         parentMessageId: content.id,
                     });
             });
         } catch (e) {
-            console.error(chalk.red(e));
+            console.error(chalk.red(`[askInteractionHandler] - ${e}`));
             await interaction.followUp({
                 content: 'Oops, something went wrong! (Undefined Response). Try again please.',
             });
@@ -378,7 +417,7 @@ async function main() {
             };
 
             if (!doc.exists) {
-                console.log('No conversation found, creating one...');
+                console.log('[askQuestion] - Conversation not found, creating new conversation...');
 
                 const response = await api.post('/conversation', defaultPayload);
 
@@ -396,7 +435,7 @@ async function main() {
 
                 cb(response);
             } else {
-                console.log('Conversation found, sending message...');
+                console.log('[askQuestion] - Conversation found, sending message...');
 
                 const docData = doc.data();
 
@@ -426,7 +465,7 @@ async function main() {
                 cb(response);
             }
         } catch (error) {
-            console.log(chalk.red('AskQuestion Error:' + error));
+            console.log(chalk.red(`[askQuestion] - ${error}`));
             cb('Oops, something went wrong! (Error)');
         }
     }
@@ -455,7 +494,7 @@ async function main() {
     });
 
     app.listen(process.env.PORT, () => {
-        console.log('Server listening on port ' + process.env.PORT);
+        console.log(`[Express] - Listening on port ${process.env.PORT}!`);
     });
 }
 
