@@ -178,10 +178,7 @@ async function main() {
                 break;
             }
             case 'toggle-session': {
-                // toggleSessionInteractionHandler(interaction);
-                const text =
-                    'Sorry, our toggle-session is currently under maintenance. We will notify you when it is ready.';
-                replyOnlyText(interaction, text);
+                toggleSessionInteractionHandler(interaction);
                 break;
             }
             case 'reset-chat':
@@ -259,7 +256,10 @@ async function main() {
 
     async function resetChatInteractionHandler(interaction) {
         try {
-            await interaction.reply('Checking...📚');
+            await interaction.deferReply({
+                fetchReply: true,
+                ephemeral: true,
+            });
 
             const userRef = db.collection('users').doc(interaction.user.id);
             const batch = db.batch();
@@ -297,21 +297,21 @@ async function main() {
         console.log('Question    : ' + question);
 
         try {
-            // const docRef = db.collection('chat-settings').doc(interaction.user.id);
-            // const doc = await docRef.get();
-            // let isPrivate = false;
+            const docRef = db.collection('chat-settings').doc(interaction.user.id);
+            const doc = await docRef.get();
+            let isPrivate = false;
 
-            // if (!doc.exists) {
-            //     await docRef.set({
-            //         isPrivate,
-            //     });
-            // } else {
-            //     isPrivate = doc.data().isPrivate;
-            // }
+            if (!doc.exists) {
+                await docRef.set({
+                    isPrivate,
+                });
+            } else {
+                isPrivate = doc.data().isPrivate;
+            }
 
             await interaction.deferReply({
                 fetchReply: true,
-                ephemeral: false,
+                ephemeral: isPrivate,
             });
 
             askQuestion(question, interaction, clientToUse, async (content) => {
