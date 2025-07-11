@@ -17,6 +17,9 @@ Cervum-AI comes with a range of features to assist Discord users with their dail
 -   Private session: Our private session feature allows you to have a one-on-one conversation with Cervum Assistant without any interruptions or distractions. This feature is perfect for sensitive or confidential conversations that you want to keep private.
 -   Continuity chat: Allow you to continue your conversation even if you close the chat channel or leave the application. You can pick up where you left off without losing any of your previous messages.
 -   Forget conversation: Delete your chat history with Cervum Assistant.
+-   Typing Effect: Enable in .env for real-time response streaming.
+-   Debug Mode: Verbose logging if DEBUG=true.
+-   Secured Announcement: Now requires API key.
 
 ## Support
 

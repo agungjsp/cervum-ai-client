@@ -1,6 +1,6 @@
 {
   "name": "cervum-ai-client",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "A Discord BOT Powered By OpenAI's ChatGPT",
   "author": "agungjsp",
   "license": "MIT",
@@ -8,24 +8,25 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "npx eslint .",
+    "test": "jest",
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@types/node": "^18.0.6",
-    "axios": "^1.2.3",
-    "chalk": "^5.2.0",
+    "@types/node": "^22.0.1",
+    "axios": "^1.7.2",
+    "chalk": "^5.3.0",
     "cors": "^2.8.5",
-    "discord.js": "^14.13.0",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2",
-    "figlet": "^1.5.2",
-    "firebase-admin": "^11.5.0",
-    "gradient-string": "^2.0.2",
-    "node-fetch": "^3.2.6"
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "figlet": "^1.7.0",
+    "firebase-admin": "^12.2.0",
+    "gradient-string": "^2.0.2"
   },
   "devDependencies": {
-    "eslint": "^8.36.0"
+    "eslint": "^9.6.0",
+    "jest": "^29.7.0"
   }
 }

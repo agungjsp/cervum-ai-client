@@ -1,7 +1,7 @@
 // Imports
 import dotenv from 'dotenv';
 dotenv.config();
-import { Client, GatewayIntentBits, REST, Routes, Partials } from 'discord.js';
+import { Client, GatewayIntentBits, REST, Routes, Partials, MessageFlags } from 'discord.js';
 import axios from 'axios';
 import chalk from 'chalk';
 import figlet from 'figlet';
@@ -10,8 +10,16 @@ import admin from 'firebase-admin';
 import express from 'express';
 import cors from 'cors';
 
-// Ignore the red squiggly lines, it works fine
-import firebaseServiceAccount from './firebaseServiceAccountKey.json' assert { type: 'json' };
+// Import Firebase service account configuration using fs
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const firebaseServiceAccount = JSON.parse(
+    readFileSync(join(__dirname, 'firebaseServiceAccountKey.json'), 'utf8'),
+);
 
 // Defines
 let res; // ChatGPT Thread Identifier
@@ -69,17 +77,21 @@ const api = axios.create({
     baseURL: process.env.CHATGPT_PROXY_URL,
 });
 
-// Initialize OpenAI Session
+// Initialize OpenAI Session (Now active if initial prompt is set)
 async function initOpenAI() {
-    res = await api.post('/conversation', {
-        message: process.env.CHATGPT_INITIAL_PROMPT,
-        stream: false,
-        clientOptions: {
-            clientToUse: process.env.CLIENT_TO_USE,
-        },
-    });
-
-    console.log(chalk.greenBright(`Connected to OpenAI API - ${res.data.response}`));
+    if (!process.env.CHATGPT_INITIAL_PROMPT) return;
+    try {
+        res = await api.post('/conversation', {
+            message: process.env.CHATGPT_INITIAL_PROMPT,
+            stream: false,
+            clientOptions: {
+                clientToUse: process.env.CLIENT_TO_USE,
+            },
+        });
+        console.log(chalk.greenBright(`Connected to OpenAI API - ${res.data.response}`));
+    } catch (error) {
+        console.error(chalk.red(`[initOpenAI] - ${error}`));
+    }
 }
 
 // Initialize Discord Application Commands
@@ -107,7 +119,7 @@ async function initFirebaseAdmin() {
     return db;
 }
 
-/////// Main Function (Execution Starts From Here)
+// Main Function (Execution Starts From Here)
 async function main() {
     if (process.env.UWU === 'true') {
         console.log(
@@ -132,10 +144,8 @@ async function main() {
             );
         })
         .catch((e) => {
-            // Retry after 3 seconds
-            setTimeout(() => {
-                initDiscordCommands();
-            }, 3000);
+            // Retry with backoff
+            setTimeout(() => initDiscordCommands(), 3000);
             console.log(chalk.red(`[initDiscordCommands] - ${e}`));
         });
 
@@ -171,10 +181,7 @@ async function main() {
                 askInteractionHandler(interaction, 'chatgpt');
                 break;
             case 'ask-bing': {
-                // askInteractionHandler(interaction, 'bing');'
-                const text =
-                    'Sorry, our ask-bing is currently under maintenance. Please use ask-gpt instead.';
-                replyOnlyText(interaction, text);
+                askInteractionHandler(interaction, 'bing'); // Re-enabled
                 break;
             }
             case 'toggle-session': {
@@ -184,12 +191,13 @@ async function main() {
             case 'reset-chat':
                 resetChatInteractionHandler(interaction);
                 break;
-            case 'ping':
+            case 'ping': {
                 const text = `Websocket Heartbeat: ${client.ws.ping}ms\nRoundtrip Latency: ${
                     Date.now() - interaction.createdTimestamp
                 }ms`;
                 replyOnlyText(interaction, text);
                 break;
+            }
             case 'help': {
                 const text =
                     "Here's a list of commands you can use with Cervum-AI:\n\n" +
@@ -214,7 +222,7 @@ async function main() {
         .login(process.env.DISCORD_BOT_TOKEN)
         .catch((e) => console.log(chalk.red(`[Discord login] - ${e}`)));
 
-    // console.log('Connecting to OpenAI API...');
+    await initOpenAI(); // Now called
 
     // await initOpenAI().catch((e) => {
     //     console.log(chalk.red(e));
@@ -223,8 +231,7 @@ async function main() {
     async function toggleSessionInteractionHandler(interaction) {
         try {
             await interaction.deferReply({
-                fetchReply: true,
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
             const doc = await db.collection('chat-settings').doc(interaction.user.id).get();
             if (!doc.exists) {
@@ -248,8 +255,7 @@ async function main() {
 
     async function replyOnlyText(interaction, text) {
         await interaction.deferReply({
-            fetchReply: true,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         await interaction.editReply(text);
     }
@@ -257,8 +263,7 @@ async function main() {
     async function resetChatInteractionHandler(interaction) {
         try {
             await interaction.deferReply({
-                fetchReply: true,
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
 
             const userRef = db.collection('users').doc(interaction.user.id);
@@ -290,11 +295,13 @@ async function main() {
         const question = interaction.options.getString('question');
         const { tag, id } = interaction.user;
 
-        console.log('----------Channel Message--------');
-        console.log('Date & Time : ' + new Date());
-        console.log('UserId      : ' + id);
-        console.log('User        : ' + tag);
-        console.log('Question    : ' + question);
+        if (process.env.DEBUG === 'true') {
+            console.log('----------Channel Message--------');
+            console.log('Date & Time : ' + new Date());
+            console.log('UserId      : ' + id);
+            console.log('User        : ' + tag);
+            console.log('Question    : ' + question);
+        }
 
         try {
             const docRef = db.collection('chat-settings').doc(interaction.user.id);
@@ -310,8 +317,7 @@ async function main() {
             }
 
             await interaction.deferReply({
-                fetchReply: true,
-                ephemeral: isPrivate,
+                flags: isPrivate ? MessageFlags.Ephemeral : undefined,
             });
 
             askQuestion(question, interaction, clientToUse, async (content) => {
@@ -394,6 +400,11 @@ async function main() {
 
     async function askQuestion(question, interaction, clientToUse, cb) {
         try {
+            // Start typing indicator if effect is enabled
+            if (process.env.TYPING_EFFECT === 'true') {
+                await interaction.channel.sendTyping();
+            }
+
             const userRef = db.collection('users').doc(interaction.user.id);
             const conversationRef = userRef.collection(clientToUse).doc('conversation');
 
@@ -416,10 +427,14 @@ async function main() {
                 invocationId: null,
             };
 
-            if (!doc.exists) {
-                console.log('[askQuestion] - Conversation not found, creating new conversation...');
+            let response;
 
-                const response = await api.post('/conversation', defaultPayload);
+            if (!doc.exists) {
+                if (process.env.DEBUG === 'true') {
+                    console.log('[askQuestion] - Conversation not found, creating new conversation...');
+                }
+
+                response = await api.post('/conversation', defaultPayload);
 
                 defaultSet.conversationId = response.data.conversationId;
                 defaultSet.parentMessageId =
@@ -432,10 +447,10 @@ async function main() {
                 }
 
                 await conversationRef.set(defaultSet);
-
-                cb(response);
             } else {
-                console.log('[askQuestion] - Conversation found, sending message...');
+                if (process.env.DEBUG === 'true') {
+                    console.log('[askQuestion] - Conversation found, sending message...');
+                }
 
                 const docData = doc.data();
 
@@ -448,7 +463,7 @@ async function main() {
                     defaultPayload.invocationId = docData.invocationId;
                 }
 
-                const response = await api.post('/conversation', defaultPayload);
+                response = await api.post('/conversation', defaultPayload);
 
                 defaultSet.conversationId = response.data.conversationId;
                 defaultSet.parentMessageId =
@@ -461,30 +476,51 @@ async function main() {
                 }
 
                 await conversationRef.set(defaultSet);
-
-                cb(response);
             }
+
+            // For streaming simulation (if enabled), edit reply in chunks
+            if (process.env.TYPING_EFFECT === 'true' && response.data.response) {
+                let streamedResponse = '';
+                const chunks = response.data.response.match(/.{1,100}/g) || [response.data.response]; // Chunk into 100-char parts or full if small
+                for (const chunk of chunks) {
+                    streamedResponse += chunk;
+                    await interaction.editReply({ content: streamedResponse }); // Edit the deferred reply
+                    await new Promise((resolve) => setTimeout(resolve, 500)); // Delay for realistic typing effect
+                }
+            }
+
+            cb(response);
         } catch (error) {
             console.log(chalk.red(`[askQuestion] - ${error}`));
-            cb('Oops, something went wrong! (Error)');
+            // Basic retry once on error
+            try {
+                if (process.env.DEBUG === 'true') {
+                    console.log('[askQuestion] - Retrying API call once...');
+                }
+                const response = await api.post('/conversation', {
+                    message: question,
+                    clientOptions: { clientToUse },
+                });
+                cb(response);
+            } catch (retryError) {
+                console.log(chalk.red(`[askQuestion Retry] - ${retryError}`));
+                cb({ data: { response: 'Oops, something went wrong! (Error after retry)' } });
+            }
         }
     }
 
-    // Discord bot announcement endpoint
+    // Discord bot announcement endpoint (added API key auth)
     app.post('/announcement', (req, res) => {
-        const { channelId, message } = req.body;
+        const { channelId, message, apiKey } = req.body;
+        if (apiKey !== process.env.ANNOUNCEMENT_API_KEY) {
+            return res.status(401).send({ status: 401, message: 'Unauthorized' });
+        }
         const channel = client.channels.cache.get(channelId);
         if (channel && message) {
             channel.send(message);
-            res.send({
-                status: 200,
-                message: 'Announcement sent',
-            });
+            res.send({ status: 200, message: 'Announcement sent' });
         } else {
-            res.status(400).send({
-                status: 400,
-                message: 'Missing channel ID or message',
-            });
+            res.status(400).send({ status: 400, message: 'Missing channel ID or message' });
         }
     });
 
