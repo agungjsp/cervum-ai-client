@@ -8,7 +8,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "start": "node index.js",
     "dev": "node --watch index.js",
     "lint": "eslint ."
