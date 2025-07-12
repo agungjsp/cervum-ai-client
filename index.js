@@ -22,7 +22,7 @@ const firebaseServiceAccount = JSON.parse(
 );
 
 // Defines
-let res; // ChatGPT Thread Identifier
+let res; // Groq Thread Identifier
 const app = express(); // Express App
 
 app.use(express.json());
@@ -31,20 +31,8 @@ app.use(cors());
 // Discord Slash Commands Defines
 const commands = [
     {
-        name: 'ask-gpt',
-        description: 'Ask Anything with GPT!',
-        options: [
-            {
-                name: 'question',
-                description: 'Your question',
-                type: 3,
-                required: true,
-            },
-        ],
-    },
-    {
-        name: 'ask-bing',
-        description: 'New! Ask Anything with Bing!',
+        name: 'ask-groq',
+        description: 'Ask Anything with Groq!',
         options: [
             {
                 name: 'question',
@@ -72,25 +60,32 @@ const commands = [
     },
 ];
 
-// Axios instance for ChatGPT Proxy
+// Axios instance for Groq API
 const api = axios.create({
-    baseURL: process.env.CHATGPT_PROXY_URL,
+    baseURL: process.env.GROQ_API_URL,
+    headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+    },
 });
 
-// Initialize OpenAI Session (Now active if initial prompt is set)
-async function initOpenAI() {
-    if (!process.env.CHATGPT_INITIAL_PROMPT) return;
+// Initialize Groq Session (Now active if initial prompt is set)
+async function initGroq() {
+    if (!process.env.GROQ_INITIAL_PROMPT) return;
     try {
-        res = await api.post('/conversation', {
-            message: process.env.CHATGPT_INITIAL_PROMPT,
+        res = await api.post('/chat/completions', {
+            model: process.env.GROQ_MODEL || 'llama3-8b-8192',
+            messages: [
+                {
+                    role: 'user',
+                    content: process.env.GROQ_INITIAL_PROMPT
+                }
+            ],
             stream: false,
-            clientOptions: {
-                clientToUse: process.env.CLIENT_TO_USE,
-            },
         });
-        console.log(chalk.greenBright(`Connected to OpenAI API - ${res.data.response}`));
+        console.log(chalk.greenBright(`Connected to Groq API - ${res.data.choices[0].message.content}`));
     } catch (error) {
-        console.error(chalk.red(`[initOpenAI] - ${error}`));
+        console.error(chalk.red(`[initGroq] - ${error}`));
     }
 }
 
@@ -137,6 +132,8 @@ async function main() {
 
     const db = await initFirebaseAdmin();
 
+    initGroq();
+
     initDiscordCommands()
         .then(() => {
             console.log(
@@ -177,13 +174,9 @@ async function main() {
         if (!interaction.isChatInputCommand()) return;
 
         switch (interaction.commandName) {
-            case 'ask-gpt':
-                askInteractionHandler(interaction, 'chatgpt');
+            case 'ask-groq':
+                askInteractionHandler(interaction, 'groq');
                 break;
-            case 'ask-bing': {
-                askInteractionHandler(interaction, 'bing'); // Re-enabled
-                break;
-            }
             case 'toggle-session': {
                 toggleSessionInteractionHandler(interaction);
                 break;
@@ -201,8 +194,7 @@ async function main() {
             case 'help': {
                 const text =
                     "Here's a list of commands you can use with Cervum-AI:\n\n" +
-                    '**/ask-gpt** - Ask Anything with GPT!\n' +
-                    '**/ask-bing** - New! Ask Anything with Bing!\n' +
+                    '**/ask-groq** - Ask Anything with Groq AI!\n' +
                     '**/toggle-session** - Toggle Private or Public Chat Session\n' +
                     '**/reset-chat** - Start A Fresh Chat Session\n' +
                     '**/ping** - Check Websocket Heartbeat & Roundtrip Latency\n' +
@@ -221,12 +213,6 @@ async function main() {
     client
         .login(process.env.DISCORD_BOT_TOKEN)
         .catch((e) => console.log(chalk.red(`[Discord login] - ${e}`)));
-
-    await initOpenAI(); // Now called
-
-    // await initOpenAI().catch((e) => {
-    //     console.log(chalk.red(e));
-    // });
 
     async function toggleSessionInteractionHandler(interaction) {
         try {
@@ -269,15 +255,12 @@ async function main() {
             const userRef = db.collection('users').doc(interaction.user.id);
             const batch = db.batch();
 
-            const chatgptDocRef = userRef.collection('chatgpt').doc('conversation');
-            batch.delete(chatgptDocRef);
+            const groqDocRef = userRef.collection('groq').doc('conversation');
+            batch.delete(groqDocRef);
 
-            const bingDocRef = userRef.collection('bing').doc('conversation');
-            batch.delete(bingDocRef);
+            const groqDoc = await groqDocRef.get();
 
-            const [chatgptDoc, bingDoc] = await Promise.all([chatgptDocRef.get(), bingDocRef.get()]);
-
-            if (!chatgptDoc.exists && !bingDoc.exists) {
+            if (!groqDoc.exists) {
                 console.log('[resetChatInteractionHandler] - Chat Reset: Already Empty ✅');
                 await interaction.editReply('Chat Reset: Already Empty ✅');
             } else {
@@ -321,8 +304,9 @@ async function main() {
             });
 
             askQuestion(question, interaction, clientToUse, async (content) => {
-                const { response, details } = content?.data ?? {};
-                const { model, usage } = details ?? {};
+                const response = content?.data?.choices?.[0]?.message?.content;
+                const model = content?.data?.model;
+                const usage = content?.data?.usage;
 
                 const embed = {
                     content: '',
@@ -342,7 +326,7 @@ async function main() {
                             },
                             thumbnail: {},
                             footer: {
-                                text: `Model: ${model ?? 'bing'} • Token Usage: ${
+                                text: `Model: ${model ?? 'groq'} • Token Usage: ${
                                     usage?.total_tokens ?? '-'
                                 }`,
                             },
@@ -386,8 +370,8 @@ async function main() {
                         userID: id,
                         user: tag,
                         question: question,
-                        answer: content.text,
-                        parentMessageId: content.id,
+                        answer: response,
+                        parentMessageId: content.data.id,
                     });
             });
         } catch (e) {
@@ -411,10 +395,14 @@ async function main() {
             const doc = await conversationRef.get();
 
             let defaultPayload = {
-                message: question,
-                clientOptions: {
-                    clientToUse,
-                },
+                model: process.env.GROQ_MODEL || 'llama3-8b-8192',
+                messages: [
+                    {
+                        role: 'user',
+                        content: question
+                    }
+                ],
+                stream: false,
             };
 
             let defaultSet = {
@@ -422,9 +410,6 @@ async function main() {
                 user: interaction.user.tag,
                 conversationId: null,
                 parentMessageId: null,
-                conversationSignature: null,
-                clientId: null,
-                invocationId: null,
             };
 
             let response;
@@ -434,17 +419,10 @@ async function main() {
                     console.log('[askQuestion] - Conversation not found, creating new conversation...');
                 }
 
-                response = await api.post('/conversation', defaultPayload);
+                response = await api.post('/chat/completions', defaultPayload);
 
-                defaultSet.conversationId = response.data.conversationId;
-                defaultSet.parentMessageId =
-                    clientToUse === 'chatgpt' ? response.data.messageId : response.data.details.messageId;
-
-                if (clientToUse === 'bing') {
-                    defaultSet.conversationSignature = response.data.conversationSignature;
-                    defaultSet.clientId = response.data.clientId;
-                    defaultSet.invocationId = response.data.invocationId;
-                }
+                defaultSet.conversationId = response.data.id;
+                defaultSet.parentMessageId = response.data.choices[0].message.content;
 
                 await conversationRef.set(defaultSet);
             } else {
@@ -454,34 +432,26 @@ async function main() {
 
                 const docData = doc.data();
 
-                defaultPayload.conversationId = docData.conversationId;
-                defaultPayload.parentMessageId = docData.parentMessageId;
-
-                if (clientToUse === 'bing') {
-                    defaultPayload.conversationSignature = docData.conversationSignature;
-                    defaultPayload.clientId = docData.clientId;
-                    defaultPayload.invocationId = docData.invocationId;
+                // For Groq, we'll add the previous message to maintain context
+                if (docData.parentMessageId) {
+                    defaultPayload.messages.unshift({
+                        role: 'assistant',
+                        content: docData.parentMessageId
+                    });
                 }
 
-                response = await api.post('/conversation', defaultPayload);
+                response = await api.post('/chat/completions', defaultPayload);
 
-                defaultSet.conversationId = response.data.conversationId;
-                defaultSet.parentMessageId =
-                    clientToUse === 'chatgpt' ? response.data.messageId : response.data.details.messageId;
-
-                if (clientToUse === 'bing') {
-                    defaultSet.conversationSignature = response.data.conversationSignature;
-                    defaultSet.clientId = response.data.clientId;
-                    defaultSet.invocationId = response.data.invocationId;
-                }
+                defaultSet.conversationId = response.data.id;
+                defaultSet.parentMessageId = response.data.choices[0].message.content;
 
                 await conversationRef.set(defaultSet);
             }
 
             // For streaming simulation (if enabled), edit reply in chunks
-            if (process.env.TYPING_EFFECT === 'true' && response.data.response) {
+            if (process.env.TYPING_EFFECT === 'true' && response.data.choices[0].message.content) {
                 let streamedResponse = '';
-                const chunks = response.data.response.match(/.{1,100}/g) || [response.data.response]; // Chunk into 100-char parts or full if small
+                const chunks = response.data.choices[0].message.content.match(/.{1,100}/g) || [response.data.choices[0].message.content]; // Chunk into 100-char parts or full if small
                 for (const chunk of chunks) {
                     streamedResponse += chunk;
                     await interaction.editReply({ content: streamedResponse }); // Edit the deferred reply
@@ -497,14 +467,20 @@ async function main() {
                 if (process.env.DEBUG === 'true') {
                     console.log('[askQuestion] - Retrying API call once...');
                 }
-                const response = await api.post('/conversation', {
-                    message: question,
-                    clientOptions: { clientToUse },
+                const response = await api.post('/chat/completions', {
+                    model: process.env.GROQ_MODEL || 'llama3-8b-8192',
+                    messages: [
+                        {
+                            role: 'user',
+                            content: question
+                        }
+                    ],
+                    stream: false,
                 });
                 cb(response);
             } catch (retryError) {
                 console.log(chalk.red(`[askQuestion Retry] - ${retryError}`));
-                cb({ data: { response: 'Oops, something went wrong! (Error after retry)' } });
+                cb({ data: { choices: [{ message: { content: 'Oops, something went wrong! (Error after retry)' } }] } });
             }
         }
     }

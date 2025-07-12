@@ -2,7 +2,7 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/agungjsp/cervum-ai-client/blob/master/LICENSE) [![GitHub Repo stars](https://img.shields.io/github/stars/agungjsp/cervum-ai-client)](https://github.com/agungjsp/cervum-ai-client/)
 
-Cervum-AI is a virtual assistant Discord bot that utilizes ChatGPT technology to provide human-like conversations and assistance with various tasks. This bot is designed to help Discord communities with their daily needs and provide a more engaging experience for their members.
+Cervum-AI is a virtual assistant Discord bot that utilizes Groq AI technology to provide human-like conversations and assistance with various tasks. This bot is designed to help Discord communities with their daily needs and provide a more engaging experience for their members.
 
 ## Announcement Website
 
@@ -27,5 +27,5 @@ If you have any questions or issues with Cervum-AI, please contact the developer
 
 ## Credits
 
-Cervum-AI is powered by [ChatGPT](https://openai.com/blog/chatgpt/) technology - developed by [OpenAI](https://openai.com).
+Cervum-AI is powered by [Groq](https://groq.com/) technology - developed by [Groq Inc](https://groq.com).
 We extend our heartfelt gratitude to the exceptional contributions made by [@waylaidwanderer](https://github.com/waylaidwanderer/node-chatgpt-api), [@itskdhere](https://github.com/itskdhere/ChatGPT-Discord-BOT) and all the other contributors 💪
